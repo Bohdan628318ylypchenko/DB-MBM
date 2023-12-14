@@ -1,0 +1,47 @@
+services:
+  funnel:
+    image: funnel
+    build:
+      context: ./Funnel
+    environment:
+      POSTGRES_HOST: postgresdb
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: zno
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      APP_INPUT_DIR: /app/input
+      APP_TX_SIZE: 1000
+      APP_DBERR_SLEEP: 1
+    depends_on:
+      postgresdb:
+        condition: service_healthy
+    volumes:
+      - type: volume
+        source: app-input
+        target: /app/input
+        read_only: true
+      
+  postgresdb:
+    image: postgresdb
+    build:
+      context: ./postgres
+    environment:
+      POSTGRES_DB: zno
+      PGUSER: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready" ]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+
+volumes:
+  db-data:
+    external: true
+  app-input:
+    external: true
