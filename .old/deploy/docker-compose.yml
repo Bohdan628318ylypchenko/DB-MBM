@@ -1,0 +1,85 @@
+version: '3'
+
+services:
+  app:
+    image: app
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: zno
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      APP_INPUT_DIR: /app/input
+      APP_TX_DIR: /app/tx
+      APP_TX_VNAME: verify
+      APP_OUTPUT_DIR: /app/output
+      APP_TRANSACTION_SIZE: 1000
+      APP_DBERR_SLEEP: 1
+    build:
+      context: ../
+      dockerfile: deploy/app/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - type: volume
+        source: app-input
+        target: /app/input
+        read_only: true
+      - type: volume
+        source: app-tx
+        target: /app/tx
+        read_only: false
+      - type: volume
+        source: app-output
+        target: /app/output
+        read_only: false
+
+  db:
+    build:
+      context: ./postgres
+    environment:
+      POSTGRES_DB: zno
+      PGUSER: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready" ]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+
+  flyway:
+    image: flyway/flyway
+    command: -url=jdbc:postgresql://db:5432/zno -user=postgres -password=postgres migrate
+    environment:
+      - FLYWAY_BASELINE_ON_MIGRATE=true
+    volumes:
+      - "../flyway/sql:/flyway/sql"
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_completed_successfully
+
+  pgadmin:
+    container_name: pgadmin_container
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-dbmbm@kpi.org}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-postgres}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+
+volumes:
+  db-data:
+  app-input:
+    external: true
+  app-tx:
+    external: true
+  app-output:
