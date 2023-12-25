@@ -20,6 +20,21 @@ services:
         source: app-input
         target: /app/input
         read_only: true
+
+  serviceworker:
+    image: service-worker
+    build:
+      context: ./ServiceWorker
+    environment:
+      POSTGRES_HOST: postgresdb
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: zno
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      APP_TX_SIZE: 200
+    depends_on:
+      postgresdb:
+        condition: service_healthy
       
   postgresdb:
     image: postgresdb
@@ -39,6 +54,27 @@ services:
       interval: 1s
       timeout: 1s
       retries: 5
+  
+  deployer:
+    image: deployer
+    build:
+      context: ./Deployer
+    environment:
+      FUNNEL_URL: http://funnel:8080/execute
+      SERVICE_WORKER_URL: http://serviceworker:8080/execute
+      DB_NAME: zno
+      DB_USER: postgres
+      DB_PASS: postgres
+      DB_HOST: postgresdb
+      MIGRATION_DIR: alembic
+      DEPLOY_FAIL_SLEEP: 1
+    depends_on:
+      postgresdb:
+        condition: service_healthy
+      funnel:
+        condition: service_started
+      serviceworker:
+        condition: service_started
 
 volumes:
   db-data:
