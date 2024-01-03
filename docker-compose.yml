@@ -54,6 +54,22 @@ services:
       interval: 1s
       timeout: 1s
       retries: 5
+
+  consumer: 
+    image: consumer
+    build:
+      context: ./Consumer
+    environment:
+      POSTGRES_DB: zno
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: postgresdb
+      POSTGRES_PORT: 5432
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgresdb:
+        condition: service_healthy
   
   deployer:
     image: deployer
@@ -62,6 +78,7 @@ services:
     environment:
       FUNNEL_URL: http://funnel:8080/execute
       SERVICE_WORKER_URL: http://serviceworker:8080/execute
+      CRUD_URL: http://consumer:8082/health_check
       DB_NAME: zno
       DB_USER: postgres
       DB_PASS: postgres

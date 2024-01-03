@@ -1,8 +1,14 @@
-import requests
+from requests import Session
+from requests.adapters import HTTPAdapter, Retry
 import os
 import alembic.config
 from loguru import logger
 from time import sleep
+
+
+s = Session()
+r = Retry(total=5, backoff_factor=0.1,)
+s.mount("http://", HTTPAdapter(max_retries=r))
 
 
 def funnel_scheme(args) -> None:
@@ -22,7 +28,7 @@ def funnel_execute(args) -> None:
     :raise: Exception when funnel response is not 201
     """
     funnel_url = args[0]
-    response = requests.post(funnel_url)
+    response = s.post(funnel_url)
     if response.status_code != 201:
         raise Exception(f"invalid funnel response = {response.text}")
 
@@ -43,7 +49,7 @@ def service_worker_execute(args) -> None:
     :param args: service worker execution start endpoint url as tuple element.
     """
     service_worker_url = args[0]
-    response = requests.post(service_worker_url)
+    response = s.post(service_worker_url)
     if response.status_code != 201:
         raise Exception(f"invalid service worker response = {response.text}")
 
@@ -56,6 +62,17 @@ def crud_scheme(args) -> None:
     crud_revision = args[0]
     alembic_args = ['upgrade', crud_revision]
     alembic.config.main(argv=alembic_args)
+
+
+def crud(args) -> None:
+    """
+    Calls crud health check to ensure crud is working.
+    :param args: crud health check url as tuple element.
+    """
+    crud_health_check_url = args[0]
+    response = s.get(crud_health_check_url, timeout=10)
+    if response.status_code != 200:
+        raise Exception(f"invalid consumer health check response = {response.text}")
 
 
 def main():
@@ -72,7 +89,8 @@ def main():
         ("funnel", funnel_execute, (os.environ["FUNNEL_URL"],)),
         ("service-worker-scheme", service_worker_scheme, ("fc3d481135d4",)),
         ("service-worker", service_worker_execute, (os.environ["SERVICE_WORKER_URL"],)),
-        ("crud-scheme", crud_scheme, ("9e9fb73a0645",))
+        ("crud-scheme", crud_scheme, ("9e9fb73a0645",)),
+        ("crud", crud, (os.environ["CRUD_URL"],))
     )
 
     # run deployment
